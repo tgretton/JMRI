@@ -1,12 +1,10 @@
 package jmri.server.json.throttle;
 
 import jmri.server.json.JsonMockConnection;
+import jmri.util.JUnitUtil;
+
 import java.io.DataOutputStream;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 /**
  *
@@ -24,12 +22,13 @@ public class JsonThrottleSocketServiceTest {
     // The minimal setup for log4J
     @Before
     public void setUp() {
-        jmri.util.JUnitUtil.setUp();
+        JUnitUtil.setUp();
+        JUnitUtil.resetProfileManager();
     }
 
     @After
     public void tearDown() {
-        jmri.util.JUnitUtil.tearDown();
+        JUnitUtil.tearDown();
     }
 
 }

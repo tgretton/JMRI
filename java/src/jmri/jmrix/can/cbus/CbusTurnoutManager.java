@@ -1,5 +1,7 @@
 package jmri.jmrix.can.cbus;
 
+import javax.annotation.CheckReturnValue;
+import javax.annotation.Nonnull;
 import jmri.JmriException;
 import jmri.Turnout;
 import jmri.jmrix.can.CanSystemConnectionMemo;
@@ -31,6 +33,27 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
         return prefix;
     }
 
+    /** 
+     * {@inheritDoc} 
+     * Overriden to normalize System Name
+     */
+    @Override
+    public Turnout provideTurnout(@Nonnull String key) {
+        String name = normalizeSystemName(key);
+        Turnout result = getTurnout(name);
+        if (result == null) {
+            if (name.startsWith(getSystemPrefix() + typeLetter())) {
+                result = newTurnout(name, null);
+            } else {
+                result = newTurnout(makeSystemName(name), null);
+            }
+        }
+        return result;
+    }
+
+    /** 
+     * {@inheritDoc} 
+     */
     @Override
     protected Turnout createNewTurnout(String systemName, String userName) {
         String addr = systemName.substring(getSystemPrefix().length() + 1);
@@ -42,7 +65,7 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
             throw e;
         }
         try {
-            if (Integer.valueOf(addr) > 0 && !addr.startsWith("+")) {
+            if (Integer.parseInt(addr) > 0 && !addr.startsWith("+")) {
                 // accept unsigned positive integer, prefix "+"
                 addr = "+" + addr;
             }
@@ -54,11 +77,17 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
         return t;
     }
 
+    /** 
+     * {@inheritDoc} 
+     */
     @Override
     public boolean allowMultipleAdditions(String systemName) {
         return false;
     }
 
+    /** 
+     * {@inheritDoc} 
+     */
     @Override
     public String createSystemName(String curAddress, String prefix) throws JmriException {
         // first, check validity
@@ -70,7 +99,7 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
         // prefix + as service to user
         int unsigned = 0;
         try {
-            unsigned = Integer.valueOf(curAddress); // on unsigned integer, will add "+" next
+            unsigned = Integer.parseInt(curAddress); // on unsigned integer, will add "+" next
         } catch (NumberFormatException ex) {
             // already warned
         }
@@ -80,6 +109,9 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
         return getSystemPrefix() + typeLetter() + curAddress;
     }
 
+    /** 
+     * {@inheritDoc} 
+     */
     @Override
     public String getNextValidAddress(String curAddress, String prefix) throws JmriException {
         // always return this (the current) name without change
@@ -113,14 +145,13 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
     void validateSystemNameFormat(String address) throws IllegalArgumentException {
         CbusAddress a = new CbusAddress(address);
         CbusAddress[] v = a.split();
-        if (v == null) {
-            throw new IllegalArgumentException("Did not find usable hardware address: " + address + " for a valid Cbus turnout address");
-        }
         switch (v.length) {
+            case 0:
+                throw new IllegalArgumentException("Did not find usable hardware address: " + address + " for a valid Cbus turnout address");
             case 1:
                 int unsigned = 0;
                 try {
-                    unsigned = Integer.valueOf(address); // accept unsigned integer, will add "+" upon creation
+                    unsigned = Integer.parseInt(address); // accept unsigned integer, will add "+" upon creation
                 } catch (NumberFormatException ex) {
                     log.debug("Unable to convert {} into Cbus format +nn", address);
                 }
@@ -135,6 +166,32 @@ public class CbusTurnoutManager extends AbstractTurnoutManager {
         }
     }
 
+
+    /** {@inheritDoc} */
+    @Override
+    public Turnout getBySystemName(@Nonnull String key) {
+        String name = normalizeSystemName(key);
+        return _tsys.get(name);
+    }
+
+    /**
+     * {@inheritDoc}
+     * 
+     * Forces upper case and trims leading and trailing whitespace.
+     * Does not check for valid prefix, hence doesn't throw NamedBean.BadSystemNameException.
+     */
+    @CheckReturnValue
+    @Override
+    public @Nonnull
+    String normalizeSystemName(@Nonnull String inputName) {
+        // does not check for valid prefix, hence doesn't throw NamedBean.BadSystemNameException
+        return inputName.toUpperCase().trim();
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getEntryToolTip() {
         String entryToolTip = Bundle.getMessage("AddOutputEntryToolTip");

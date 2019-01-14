@@ -1,11 +1,7 @@
 # How we build and release JMRI distributions
 [Online version](https://github.com/JMRI/JMRI/blob/master/scripts/HOWTO-distribution.md)
 
-In SVN, we used "branches" to record the contents of a release. The "Release-4-1-1" branch was used to accumulate the content of that release, and then finally to record that content. In CVS, we'd used tags to record the content of a release, but SVN "tag" and "branch" constructs don't really differ.
-
-Git branches are more ephemeral than SVN branches. They're great for development work, but aren't considered a good way to record content.  Git tags, on the other hand, are great for that.
-
-So our releases procedure is, in outline:
+Our release procedure is, in outline:
 
 * Create a GitHub Issue to hold discussion with conventional title "Develop release-n.n.n". 
 
@@ -36,6 +32,28 @@ So our releases procedure is, in outline:
 
 - [ ] It might be a good idea to keep the production release branches around throughout the next test phases, but we should be able to prune each test release branch once we've tagged it. So, we'd keep the 4.4 (and 4.4.1) branch around throughout the 4.5.x phase and then prune it when moving to 4.6. Each 4.5.x branch should be pruned once tagged as, if we need to do changes to a test release, we just release a new version on it's own branch from 'master’. How about the case near the end of a development cycle when we’re doing incremental releases? E.g. 4.5.9 might be 4.5.8+deltas?  Should that be a branch from a branch? We'll need to develop and document this as needed.
 
+### Suggested approach (2016) to handling near-production test releases:
+
+As part of building e.g. release 4.13.8, we create a "release-4.13.9-suggested-patches" branch off the final v4.13.8 tag. The sequence is then:
+
+- A developer notices some issue needing to be resolved post 4.13.8
+- Developer makes own development branch from 'release-4.13.9-suggested-patches'
+- Developer makes necessary changes, commits and then pushes to own fork.
+- Developer then creates PR from own development branch onto 'JMRI/JMRI/release-4.13.9-suggested-patches'
+- Developer additionally creates second PR from own development branch onto 'JMRI/JMRI/master' (*) - could also be performed by the Release Pumpkin meaning the
+developer need only create a single PR between 'needed-patches' (communityu decision needed here)
+- If decisions is to include this, Release Pumpkin merges first PR into 'JMRI/JMRI/release-4.13.9-suggested-patches'
+- 4.13.9 is eventually built (and if need be, rebuilt) from release-4.13.9-suggested-patches
+- Maintainer merges second PR into 'JMRI/JMRI/master' whenever.
+
+This has the nice property that if multiple things arise, they can definitely be handled separately. It still gets a bit tricky if there's a difference (e.g. due to a conflict with another change) that arises in either PR.  We'll have to manage that a little carefully. One way to handle that is to _not_ merge any conflicts on master (_any_ PRs to master, not just in these dual-hatted PRs) until after the test release is done and merged back.
+
+The problem is that there are production people who aren't used to working off the master branch.
+
+### Note on file names
+
+Our filenames are generated with [semantic versioning](http://semver.org) format in which the `+R202c9ee` indicates build meta-data, specifically the hash for the tag point.  Originally, the GitHub binary-file release system changed the '+' to a '.', so our scripts below did that too.  That was fixed at the start of 2018, so we no longer do it, but there are some old releases with that filename format.
+
 ============================================================================
 
 # Detailed Instructions
@@ -49,31 +67,29 @@ If you're attempting to perform this on MS Windows, refer to the MS Windows note
 ================================================================================
 ## Notification
 
-- Create a [GitHub Issue](https://github.com/JMRI/JMRI/issues) to hold discussion with conventional title "Create release-n.n.n". (This might already exist, if it was properly created at the end of the last build cycle)
-
+- Create a [GitHub Issue](https://github.com/JMRI/JMRI/issues) to hold discussion with conventional title "Create release-4.15.2". (This might already exist, if it was properly created at the end of the last build cycle)
 
 ================================================================================
 ## Update Content
 
-- Update this note by (details in the update-HOWTO.sh comments; arguments when you run it should be last release, this release you're making, the next release; you may need to update):
+- Update this note by executing the following line in your JMRI repository directory while you _don't_ have this file open in an editor. There are more details in the update-HOWTO.sh comments; arguments when you run it should be last release, this release you're making, the next release; you may need to update what's below:
 ```
-  ./scripts/update-HOWTO.sh 4.11.9 4.13.1 4.13.2
+  ./scripts/update-HOWTO.sh 4.15.2 4.15.3 4.15.3
 ```
-(and then manually update the end of that line above to be this version being made today, next version to be made later, one after that; i.e. when starting to do *.4, the arguments after you edit it here are *.4 *.5 *.6) 
+then manually update the end of that line above in this document to be this version being made today, next version to be made later, one after that; i.e. when starting to do *.4, the arguments after you edit it here are *.4 *.5 *.6
 
-- To check the script ran OK, the following should be the release you're doing now: 4.11.9
+- To check the script ran OK, the following should be the release you're doing now: 4.15.2
 
 - Go to the master branch on your local repository. Pull back from the main JMRI/JMRI repository to make sure you're up to date.
 
-- If it's a new year, update copyright dates (done for 2016):
+- If it's a new year, update copyright dates (done for 2018):
     JMRI:
     * build.xml in the jmri.copyright.years property value
-    * xml/XSLT/build.xml in the property value, index.html, CSVindex.html
+    * xml/XSLT/build.xml
+    * scripts//WinInstallFiles/LaunchJMRI.nsi
     website:
-    * Copyright.html (3 places)
-    * index.html
-    * Footer
-    * contact/index.html
+    * Copyright.shtml (3 places)
+    * Footer Footer.shtml
     * (grep -r for the previous year in the web site, xml; don't change copyright notices!)
 
 - Bring in all possible GitHub JMRI/JMRI [pull requests](https://github.com/JMRI/JMRI/pulls)
@@ -101,6 +117,7 @@ If you're attempting to perform this on MS Windows, refer to the MS Windows note
 ```
         cd help/en/
         ant
+        cd ../..
 ```
 
 Be patient, it might take a couple minutes. That will pop some frames, etc, but should be entirely automatic. 
@@ -111,22 +128,30 @@ Be patient, it might take a couple minutes. That will pop some frames, etc, but 
 
 - Commit this back:
 ```
-        git commit -m"JavaHelp indexing update" .
-        cd ../..
+        git commit -m"JavaHelp indexing update" help/en/
 ```
 
 ================================================================================
 ## General Maintenance Items
 
-We roll some general code maintenance items into the release process.  They can be skipped occasionally.
+We roll some general code maintenance items into the release process.
 
-- Check for any files with multiple UTF-8 Byte-Order-Marks.  This shouldn't usually happen but when it does can be a bit tricky to find. Scan from the root of the repository and fix any files found:
+- Check for any files with multiple UTF-8 Byte-Order-Marks.  This shouldn't usually happen but when it does can be a bit tricky to find. The following command scans from the root of the repository. Use a Hex editor to remove the erroneous extra Byte-Order-Marks found - a valid UTF-8 file should only have either one 3-byte BOM (EF BB BF) or no BOM at all.
 
 ```
         grep -rlI --exclude-dir=.git '^\xEF\xBB\xBF\xEF\xBB\xBF' .
 ```
- 
-  It might be necessary to use a Hex editor to remove the erroneous extra Byte-Order-Marks - a valid UTF-8 file should only have either one 3-byte BOM (EF BB BF) or no BOM at all.
+
+- Check for any scripts with tabs. If you find them, use an editor with a "DeTab" tool that can replace them with alignment on 4-character tab columns; do not just replace them with four spaces.
+
+```
+        grep -lr '\t' jython/ | grep '\.py'
+```
+
+- Check for code that's using native Java Timers; see jmri.util.TimerUtil for background (requires that the code has been built):
+```
+        grep -rl 'java.util.Timer\x01' target/
+```
 
 - Run "ant alltest"; make sure they all pass; fix problems and commit back
 
@@ -139,19 +164,19 @@ We roll some general code maintenance items into the release process.  They can 
         ant
 ```
 
-- This is a good place to make sure CATS still builds, see the (doc page)[http://jmri.org/help/en/html/doc/Technical/CATS.shtml] - note that CATS has not been updated to compile cleanly with JMRI 4.*
+- This is a good place to make sure CATS still builds, see the [doc page](http://jmri.org/help/en/html/doc/Technical/CATS.shtml) - note that CATS has not been updated to compile cleanly with JMRI 4.*
         
 - If you fixed anything, commit it back. 
 
-- Commit the current copy of these notes. Push directly back to master on GitHub.
+- Commit the current copy of these notes, the push directly back to master on GitHub.
 
 ```
-git commit -m"for 4.11.9" scripts/HOWTO-distribution.md
+git commit -m"for 4.15.2" scripts/HOWTO-distribution.md
 git push github
 ```
 
 ================================================================================
-## Create the Release Branch
+## Create the Next Milestone and Release Note
 
 
 - Create a [new milestone](https://github.com/JMRI/JMRI/milestones) with the _next_ release number, dated the 2nd Saturday of the month (might be already there, we've been posting them a few in advance)
@@ -163,13 +188,13 @@ git push github
 ```    
         cd (local web copy)/releasenotes
         git pull 
-        cp jmri4.11.9.shtml jmri4.13.1.shtml
+        cp jmri4.15.2.shtml jmri4.15.3.shtml
         (edit the new release note accordingly)
             change numbers throughout
             move new warnings to old
             remove old-version change notes
-        git add jmri4.13.1.shtml
-        git commit -m"start new 4.13.1 release note" jmri4.13.1.shtml
+        git add jmri4.15.3.shtml
+        git commit -m"start new 4.15.3 release note" jmri4.15.3.shtml
         git push github
         cd (local JMRI copy)
 ```
@@ -182,11 +207,8 @@ https://github.com/JMRI/JMRI/pulls?q=is%3Apr+is%3Aclosed+merged%3A%3E2016-08-13+
 ```
 where the date at the end should be the date (and optionally time) of the last release. For each, if it doesn't have the right milestone set, and is a change to the release code (e.g. isn't just a change to the CI settings or similar), add the current milestone.  
 
-- (MANUAL STEP FOR NOW)  Update the <version> element in pom.xml to say the current release:
-```
-    <version>4.11.9-SNAPSHOT</version>
-```
-Commit, and push back directly to master (this should be the only change, and has to be before the next step)
+================================================================================
+## Create the Release Branch
 
 - Start the release by creating a new "release branch" using Ant.  (If you need to make a "branch from a branch", such as nearing the end of the development cycle, this will need to be done manually rather than via ant.) (Also, you should _not_ have any modified and added (e.g. green) files showing in `git status`, which might interfere) (There's a summary of the steps involved in this at the bottom)
 
@@ -195,34 +217,42 @@ Commit, and push back directly to master (this should be the only change, and ha
         ant make-test-release-branch
 ```
 
-- Put the following comment in the release GitHub item saying the branch exists, and all future changes should be documented in the new release note: (NOT FOR THE LAST TEST RELEASE FROM MASTER BEFORE A PRODUCTION RELEASE)
+
+- (MANUAL STEP FOR NOW)  Update the <version> element in pom.xml to say the next release:
+```
+    <version>4.15.3-SNAPSHOT</version>
+```
+Commit, and push back directly to master (this should be the only change, and has to be before the next step)
+```
+git commit -m"for next release 4.15.3" pom.xml
+git push github
+```
+
+
+- Put the following comment in the release GitHub item saying the branch exists, and all future changes should be documented in the new release note: (NOT FOR THE LAST TEST RELEASE FROM MASTER BEFORE A PRODUCTION RELEASE, see just below)
 
 ```
-The release-4.11.9 branch has been created. 
+The release-4.15.2 branch has been created. 
 
-From now on, please document your changes in the [jmri4.13.1.shtml](https://github.com/JMRI/website/blob/master/releasenotes/jmri4.13.1.shtml) release note file.
+From now on, please document your changes in the [jmri4.15.3.shtml](https://github.com/JMRI/website/blob/master/releasenotes/jmri4.15.3.shtml) release note file.
 
-Maintainers, please set the 4.13.1 milestone on pulls from now on, as that will be the next test release from the HEAD of the master branch.
+Maintainers, please set the 4.15.3 milestone on pulls from now on, as that will be the next test release from the HEAD of the master branch.
 
-Jenkins will be creating files shortly at the [CI server](http://builds.jmri.org/jenkins/job/TestReleases/job/4.11.9/)
+Jenkins will be creating files shortly at the [CI server](http://builds.jmri.org/jenkins/job/TestReleases/job/4.15.2/)
 ```
 
 FOR THE LAST TEST RELEASE FROM MASTER BEFORE A PRODUCTION RELEASE:
 
 ```
-The release-4.11.9 branch has been created. 
+The release-4.15.2 branch has been created. 
 
-From now on, please document your changes in the [jmri4.13.1.shtml](https://github.com/JMRI/website/blob/master/releasenotes/jmri4.13.1.shtml) release note file.
+From now on, please document your changes in the [jmri4.15.2.shtml](https://github.com/JMRI/website/blob/master/releasenotes/jmri4.15.2.shtml) release note file.
 
-Maintainers, please set the 4.13.1 milestone on pulls from now on, as that will be the next test release from the HEAD of the master branch.
+Maintainers, please set the 4.15.2 milestone on pulls from now on, as that will be the next test release from the HEAD of the master branch.
 
-Jenkins will be creating files shortly at the [CI server](http://builds.jmri.org/jenkins/job/TestReleases/job/4.11.9/)
+Jenkins will be creating files shortly at the [CI server](http://builds.jmri.org/jenkins/job/TestReleases/job/4.15.2/)
 
-If you're developing any additional (post-4.11.9) changes that you want in the JMRI 4.12 production release, please start from this branch, i.e. do
-```
-git checkout -b release-4.11.9
-```
-to start your work.
+If you're developing any additional (post-4.15.2) changes that you want in the JMRI 4.16 production release, please start from this branch, i.e. do `git checkout -b release-4.15.2` to start your work.
 ```
 
 ================================================================================
@@ -230,7 +260,7 @@ to start your work.
 
 (If you can't build with Jenkins, see the "Local Build Alternative" section near the bottom)
 
-- Log in to the [Jenkins CI engine](http://builds.jmri.org/jenkins/job/TestReleases/)
+- Log in to the [Jenkins CI engine](http://builds.jmri.org/jenkins/job/TestReleases/) "Releases" section
 
 - Click "New Item"
 
@@ -241,34 +271,41 @@ to start your work.
         Project Name
         Description
         Git Modules: Branch
+           Clone (Advanced) refspec should be +refs/heads/master:refs/remotes/origin/release-4.15.2
     
-    and click "Save". If needed, click "Enable".
+- Check under Source Code Management, Additional Behaviours, Advanced Clone Behaviours "Honor refspec" and "Shallow Clone" are checked, Shallow Clone Depth is 1, and time out is 20.
+
+- Click "Save". If needed, click "Enable".
 
 - The build will start shortly (or click "Build Now"). Wait for it to complete.
 
-- On your local machine, open jvisualvm. Start "ant alltest" and attach jvisualvm to it. When it's done, put a screen-shot of the four monitor graphs into the "Create Test Release 4.11.9" Github issue so that historical resource usage info is available.
+- On your local machine, open jvisualvm. Start "ant alltest" and attach jvisualvm to it. When it's done, put a screen-shot of the four monitor graphs into the "Create Test Release 4.15.2" Github issue so that historical resource usage info is available.
 
 ================================================================================
 ## Put Files Out For Checking
 
 - Change the release note to point to the just-built files (in CI or where you put them), commit, wait (or force via ["Build Now"](http://builds.jmri.org/jenkins/job/Web%20Site/job/Website%20from%20JMRI%20GitHub%20website%20repository/) update). Confirm visible on web.
 
-- Announce the file set via email to jmri-developers@lists.sf.net with a subject line "First 4.11.9 files available":
+- Announce the file set via email to jmri@jmri-developers.groups.io with a subject line 
 
-First JMRI 4.11.9 files are available in the usual way at:
+```
+"First 4.15.2 files available":
 
-http://builds.jmri.org/jenkins/job/TestReleases/job/4.11.9
+First JMRI 4.15.2 files are available in the usual way at:
+
+http://builds.jmri.org/jenkins/job/TestReleases/job/4.15.2
 
 Feedback appreciated. I would like to release this later today or tomorrow morning if the files are OK.
+```
 
 - *Wait for some replies* before proceeding
 
 ================================================================================
-## Further Changes to Contents
+## Further Changes to Contents Before Release
 
 If anybody wants to add a change from here on in, they should
 
-- Ideally, start the work on either the release-4.11.9 branch (if working after that was started) or on a branch-from-master that's _before_ the release-4.11.9 branch was created.  That way, the change can be cleanly included in the release branch, and also directly onto master.
+- Ideally, start the work on either the release-4.15.2 branch (if working after that was started) or on a branch-from-master that's _before_ the release-4.15.2 branch was created.  That way, the change can be cleanly included in the release branch, and also directly onto master.
 
 - Commit their changes to that branch, and push as needed to get it to their GitHub fork.
 
@@ -276,7 +313,7 @@ If anybody wants to add a change from here on in, they should
 
    - One to master, as usual
    
-   - One to the release branch e.g. "release-4.11.9".  The comment on this PR should explain why this should be included instead of waiting for the next release.
+   - One to the release branch e.g. "release-4.15.2".  The comment on this PR should explain why this should be included instead of waiting for the next release.
    
    Merging the PR to the master makes those changes available on further developments forever; the one on the release, if accepted, includes the change and kicks off new runs of the various CI and build jobs.
 
@@ -284,28 +321,9 @@ If anybody wants to add a change from here on in, they should
 
 If somebody has merged their change into master (or it's branched from master later than the release tag), you have two choices:
 
-- Merge master into the release-4.11.9 branch.  This will bring _everything_ that's been merged in, so remember to update the version markers on those PRs.  Effectively, you've just started the release process later.  Note that the `release.properties` file will have the wrong minor number in it:  You'll have to edit and commit that to get the right number in the release.
+- Merge master into the release-4.15.2 branch.  This will bring _everything_ that's been merged in, so remember to update the version markers on those PRs.  Effectively, you've just started the release process later.  Note that the `release.properties` file will have the wrong minor number in it:  You'll have to edit and commit that to get the right number in the release.
 
-- `git cherrypick` just the changes you want.  Read the documentation on that command carefully and double check your work. If possible, check the contents of the release branch on the GitHub web site to make sure only the changes you wanted were included.
-
-
-### Special instructions for the last few test releases before a production release:
-
-(The following is tentative text for this section from a 4/2016 jmri-developers discussion on how to do this for the run-up to 4.4, starting with 4.3.7 - Bob)
-
-As part of building e.g. release 4.3.7, we create a "release-4.3.8-suggested-patches" branch off the final v4.3.7 tag. The sequence is then:
-
-- A developer notices some issue needing to be resolved post 4.3.7
-- Developer makes own development branch from 'release-4.3.8-suggested-patches'
-- Developer makes necessary changes, commits and then pushes to own fork.
-- Developer then creates PR from own development branch onto 'JMRI/JMRI/release-4.3.8-suggested-patches'
-- Developer additionally creates second PR from own development branch onto 'JMRI/JMRI/master' (*) - could also be performed by the Release Pumpkin meaning the
-developer need only create a single PR between 'needed-patches' (communityu decision needed here)
-- If decisions is to include this, Release Pumpkin merges first PR into 'JMRI/JMRI/release-4.3.8-suggested-patches'
-- 4.3.8 is eventually built (and if need be, rebuilt) from release-4.3.8-suggested-patches
-- Maintainer merges second PR into 'JMRI/JMRI/master'
-
-This has the nice property that if multiple things arise, they can definitely be handled separately. It still gets a bit tricky if there’s a difference (e.g. due to a conflict with another change) that arises in either PR.  We’ll have to manage that a little carefully. One way to handle that is to _not_ merge any conflicts on master (_any_ PRs to master, not just in these dual-hatted PRs) until after the test release is done and merged back.
+- `git cherrypick` just the changes you want. *This is not the recommended approach, as it is error-prone; we've had to withdraw releases in the past due to this.*  Read the documentation on that command carefully and double check your work. If possible, check the contents of the release branch on the GitHub web site to make sure only the changes you wanted were included.
 
 ====================================================================================
 ## Create zipped .properties (experimental)
@@ -313,36 +331,35 @@ This has the nice property that if multiple things arise, they can definitely be
 The following will take several minutes, so be patient:
 
 ```
-ant realclean compile
+git checkout release-4.15.2
+ant clean compile
 cd target
-rm -f properties.4.11.9.zip
+rm -f properties.4.15.2.zip
 
 foreach x ( `find classes -name \*.properties` )
-printf '%s\n' 0a '# from tag v4.11.9' . x | ex $x
+printf '%s\n' 0a '# from tag v4.15.2' . x | ex $x
 end
 
-find classes -name \*.properties | zip -@ properties.4.11.9.zip
+find classes -name \*.properties | zip -@ properties.4.15.2.zip
 cd ..
 mkdir release
-mv target/properties.4.11.9.zip release/
+mv target/properties.4.15.2.zip release/
 ```
-
-Then decide what to do with the properties.4.11.9.zip file. Tentatively, we're just attaching the properties.4.11.9.zip file to the release without further mention.
 
 ====================================================================================
 ## Format file-release information
 
 Run a script to download the created files, create checksums and create text for release notes, etc
 ```
-./scripts/releasesummary 4.11.9
+./scripts/releasesummary 4.15.2
 ```
+
+This will print a bunch of text in several sections. Save that for later.
 
 ====================================================================================
 ## Create GitHub Release and upload files
 
 This puts the right tag on the branch, then removes the branch.  
-
-Note on file names:  Our filenames are generated with proper [semantic versioning](http://semver.org) in which the `+R202c9ee` indicates build meta-data, specifically the hash for the tag point.  But the GitHub binary-file release system changes the '+' to a '.', so our scripts below do that too.  A request for support was filed with GitHub on this in early June 2017.
 
 Note: Once a GitHub Release is created it is *not* possible to change it to refer to different contents. *Once this step is done, you need to move on to the next release number.*
 
@@ -355,38 +372,33 @@ Note: Once a GitHub Release is created it is *not* possible to change it to refe
 
 - Fill out form:
 
-   - "tag version field" gets v4.11.9 (e.g. leading lower-case "v")
-   - @ branch: select the release-4.11.9 release branch
+   - "tag version field" gets v4.15.2 (e.g. leading lower-case "v")
+   - @ branch: select the release-4.15.2 release branch
 ```
-"Release title" field gets "Test/Prod Release 4.11.9"
+"Release title" field gets "Test/Prod Release 4.15.2"
 ```
    - Description should contain (the releasesummary script above proposed this!):
 
 ```   
-[Release notes](http://jmri.org/releasenotes/jmri4.11.9.shtml)
+[Release notes](http://jmri.org/releasenotes/jmri4.15.2.shtml)
 
 Checksums:
 
 File | SHA256 checksum
 ---|---
-[JMRI.4.11.9.R72446d4.dmg](https://github.com/JMRI/JMRI/releases/download/v4.11.9/JMRI.4.11.9.R72446d4.dmg) | 7852de77d6bf44c8a677d3229ebaa38115258a0afc518667e3e7f8d6a89a2ce3
-[JMRI.4.11.9.R72446d4.exe](https://github.com/JMRI/JMRI/releases/download/v4.11.9/JMRI.4.11.9.R72446d4.exe) | 8a2b32d6c1da0664502b2d4660c93c5853fc9b988a29bfd0255586c56fe91499
-[JMRI.4.11.9.R72446d4.tgz](https://github.com/JMRI/JMRI/releases/download/v4.11.9/JMRI.4.11.9.R72446d4.tgz) | 46bf97d949c43e6d7c95d61c741efb12698158658b5ccebd3cffb892e3803c19
-
+[JMRI.4.13.6+Rcb07def.dmg](https://github.com/JMRI/JMRI/releases/download/v4.13.6/JMRI.4.13.6+Rcb07def.dmg) | 6deb881792c4cf03a3088196a2d19f9d303999d2aa31e0e913a61fd4312f5f13
+[JMRI.4.13.6+Rcb07def.exe](https://github.com/JMRI/JMRI/releases/download/v4.13.6/JMRI.4.13.6+Rcb07def.exe) | 21ebcac7d872f02a353f482e954b0d2ecec0df0a3eac3fdc20bd2f168fa4ebaa
+[JMRI.4.13.6+Rcb07def.tgz](https://github.com/JMRI/JMRI/releases/download/v4.13.6/JMRI.4.13.6+Rcb07def.tgz) | dfc165645ffc13b2b5f88b2c29a4510ec70204244a5a84b77a0e4425806ae38a
 ```
 
-- Attach files by selecting them or dragging them in. You might have downloaded them above or do it now via e.g. 
+- Attach files by selecting them or dragging them in. Make sure that the Linux one is .tgz, not .tar.
 
-```
-curl -o release.zip "http://builds.jmri.org/jenkins/job/TestReleases/job/4.11.9/lastSuccessfulBuild/artifact/dist/release/*zip*/release.zip"" 
-```
-and expansion; 
+- [ ] it's slow to upload from a typical home connection,; we wish we had a way to cross-load them from Jenkins
 
-- [ ] it's slow to upload from a typical home connection, so wish we had a way to cross-load them from Jenkins
-
-Note there's a little progress bar that has to go across & "Uploading your release now..." has to complete before you publish; make sure all three files show.
+Note there's a little progress bar that has to go across & "Uploading your release now..." has to complete before you publish; make sure all four files (three installers plus properties) are there.
     
 - Click "Publish Release"
+
 - Wait for completion, which might be a while with big uploads
 
 - Close the [current milestone](https://github.com/JMRI/JMRI/milestones) with the current release number
@@ -394,14 +406,14 @@ Note there's a little progress bar that has to go across & "Uploading your relea
 ====================================================================================
 ## Check for Unmerged Changes
 
-It's important that any changes that were made on the branch also get onto master. Normally this happens automatically with the procedure in "Further Changes" above. But we need to check. Start with your Git repository up to date on master and the release branch, and then (*need a cleaner, more robust mechanism for this*; maybe GitX or a PR?):
+If there were changes once the release was tagged, it's important that those changes also get onto master. Normally this happens automatically with the procedure in "Further Changes" above. But we need to check. Start with your Git repository up to date on master and the release branch, and then (*need a cleaner, more robust mechanism for this*; maybe GitX or a PR?):
 
 ```
 git fetch
 git checkout master
 git pull
 git checkout -b temp-master
-git merge origin/release-4.11.9
+git merge origin/release-4.13.6
 ```
 
 Note that you're testing the merge of the release branch back onto master.  This should report "Already up-to-date.", i.e. no changes, with the possible exception of some auto-generated files:
@@ -423,14 +435,16 @@ If there are any changes in other files, do both of:
 ====================================================================================
 ## Update GitHub Status items
 
-- Create the next [GitHub Issue](https://github.com/JMRI/JMRI/issues) to hold discussion with conventional title "Create Test Release 4.13.1". Add the next release milestone (created above) to it. Typical text (get the date from the [milestone page](https://github.com/JMRI/JMRI/milestones)); for later releases in the series copy specific text from the milestone page:
+- Create the [next GitHub Issue](https://github.com/JMRI/JMRI/issues) to hold discussion with conventional title "Create Test Release 4.15.3". Add the next release milestone (created above) to it. Typical text (get the date from the [milestone page](https://github.com/JMRI/JMRI/milestones)); for later releases in the series copy specific text from the milestone page:
 ```
-This is the next release in the 4.12 cycle. It's intended to be released around May 12 from HEAD of master.
+This is the next release in the 4.16 cycle. It's intended to be released around (July 12) from HEAD of master.
 ```
 
-- Confirm that the tag for the current release (v4.11.9 for release 4.11.9) is in place via the [tags page](https://github.com/JMRI/JMRI/tags), then manually delete the current release branch (release-4.11.9) via the [GitHub branches page](https://github.com/JMRI/JMRI/branches).
+- Confirm that the tag for the current release (v4.15.2 for release 4.15.2) is in place via the [tags page](https://github.com/JMRI/JMRI/tags), then manually delete the current release branch (release-4.15.2) via the [GitHub branches page](https://github.com/JMRI/JMRI/branches).  (N.B. We are experimenting with having the `release*` branches protected, in which case you may have to go to Setting; Branches; then edit the Release* branch name to ReleaseX* to disable the protection before removing the branch.  If you do that, remember to replace the protection!)
 
 - Go to the GitHub PR and Issues [labels list](https://github.com/JMRI/JMRI/labels) and remove any "afterNextTestRelease" (and "afterNextProductionRelease" if appropriate) labels from done items
+
+- If this is a production release, update the "Downloads" badge in the JMRI/JMRI README.md file in the JMRI and website repositories and commit back.
 
 ====================================================================================
 ## Branches for preparation of Production Releases
@@ -458,7 +472,7 @@ git push github
      index.shtml download/Sidebar download/index.shtml releaselist
 ```
 
-- Commit site, push, etc.
+- Commit site, push to github
 
 - Wait for update on JMRI web server (or [ask Jenkins](http://builds.jmri.org/jenkins/job/WebSite/) to speed it along; note there are multiple components that need to run)
 
@@ -466,32 +480,38 @@ git push github
 ====================================================================================
 ## Announcement and Post-release Steps
 
-- Mail announcement to jmriusers@yahoogroups.com + Groups.io
+- Mail announcement to jmriusers@groups.io
 
-    Subject is "Test version 4.11.9 of JMRI/DecoderPro is available for download" or "JMRI 4.8 is available for download"
+    Subject is "Test version 4.15.2 of JMRI/DecoderPro is available for download" or "JMRI 4.16 is available for download"
 
     Content:
     
-Test version 4.11.9 of JMRI/DecoderPro is available for download.
+Test version 4.15.2 of JMRI/DecoderPro is available for download.
 
-This is the next in a series of test releases that will culminate in a production release, hopefully in Summer 2018.
+This is the next in a series of test releases that will culminate in a production release, hopefully in early Summer 2019.
 
 - Alt: There have been a lot of updates in this version, so it should be considered experimental.
 - Alt: We're getting close to the end of the development series, so we'd appreciate feedback on whether or not this release works for your layout.
 
-If you use JMRI on Linux or Mac and are updating from JMRI 4.7.3 or earlier, there’s a necessary migration step. (Not needed on Windows) Please see the release note for details: <http://jmri.org/releasenotes/jmri4.11.9.shtml#migration>
+If you are currently using JMRI 4.9.6 or earlier, we strongly recommend that you first update to JMRI 4.12 and make sure that's running OK before updating to this test release. There have been a number of changes in serial port support, panel file format and configuration options since those earlier releases, and moving to the stable JMRI 4.12 release is a good way to work through any possible problems.
+<http://jmri.org/releasenotes/jmri4.12.shtml>
 
-For more information on the issues, new features and bug fixes in 4.11.9 please see the release note:
-<http://jmri.org/releasenotes/jmri4.11.9.shtml>
+If you use JMRI on Linux or Mac and are updating from JMRI 4.7.3 or earlier, there’s a necessary migration step. (Not needed on Windows) Please see the JMRI 4.12 release note for details: <http://jmri.org/releasenotes/jmri4.12.shtml#migration>
+
+For more information on the issues, new features and bug fixes in 4.15.2 please see the release note:
+<http://jmri.org/releasenotes/jmri4.15.2.shtml>
 
 Note that JMRI is made available under the GNU General Public License. For more information, please see our copyright and licensing page.
 <http://jmri.org/Copyright.html>
 
 The download links, along with lots of other information which we hope you'll read, can be found on the release note page:
-<http://jmri.org/releasenotes/jmri4.11.9.shtml>
+<http://jmri.org/releasenotes/jmri4.15.2.shtml>
 
+- Close the [current release GitHub Issue](https://github.com/JMRI/JMRI/issues) with a note saying that
+```
+JMRI 4.15.2 has been released. Files are available in the GitHub release section.
 
-- If a production version, update the SF automatic download icon by selecting default in SF.net FRS (3 times)
+```
 
 - Wait a day for complaints
 
@@ -518,20 +538,25 @@ The download links, along with lots of other information which we hope you'll re
 
 - Commit back any changes made to this doc
 
-- Close the [GitHub issue](https://github.com/JMRI/JMRI/issues) with a comment that sums up the release-build experience
-
 - Take a break!
 
 
 
 ====================================================================================
+
+# Additional Information
+
+The rest of the document provides information about specific cases.
+
 ====================================================================================
 ## Local-build Alternative
 
 If you can't use Jenkins for the actual build, you can create the files locally:
 
 If you're building locally:
-* You need to have installed NSIS from http://nsis.sourceforge.net (we use version 3.01 with long string support; see [Issue 3913](https://github.com/JMRI/JMRI/issues/3913) for instructions on how to build that for Linux)
+* You need to have installed NSIS from http://nsis.sourceforge.net (we use version 3.01 with long string support; see [Issue 3913](https://github.com/JMRI/JMRI/issues/3913) for instructions on how to build that for Linux). On macOS, install (currently [version 3.03](https://formulae.brew.sh/formula/makensis) via Homebrew
+ - brew install makensis --with-large-strings
+ - add an entry in "local.properties" nsis.home=/usr/local/bin/
 
 * Either make sure that 'makensis' is in your path, or set nsis.home in your local.properties file to the root of the nsis installation:
 
@@ -542,7 +567,7 @@ If you're building locally:
 - Get the release in your local work directory
 
 ```
-    git checkout release-4.11.9
+    git checkout release-4.15.2
 ```
 
 - edit release.properties to say release.official=true (last line)
@@ -553,7 +578,7 @@ If you're building locally:
     ant -Dnsis.home="" clean packages
 ```
  
-    Ant will do the various builds, construct the distribution directories, and finally construct the Linux, Mac OS X and Windows distribution files in dist/releases/
+Ant will do the various builds, construct the distribution directories, and finally construct the Linux, Mac OS X and Windows distribution files in dist/releases/
 
 - Put the Linux, Mac OS X and Windows files where developers can take a quick look, send an email to the developer list, and WAIT FOR SOME REPLIES
  
@@ -573,6 +598,14 @@ If you're building locally:
     (The user has to have put the htdocs link in their SF.net account)
 
 ================================================================================
+
+To do a direct download:
+
+```
+curl -o release.zip "http://builds.jmri.org/jenkins/job/TestReleases/job/4.15.2/lastSuccessfulBuild/artifact/dist/release/*zip*/release.zip"" 
+```
+and expansion; 
+
 ================================================================================
 ## Notes for those attempting this on MS Windows platform:
 
@@ -627,7 +660,6 @@ Also, it will be necessary to work in a Cygwin-specific SVN repository as one ch
 Some of the operations that are performed will still generate files with CRLF line-ends (even within the Cygwin environment) - for these, run the changed files through 'dos2unix'. To get a list of changed files, use 'svn st' at top of repo.
 
 ================================================================================
-================================================================================
 Manual process for making help file indexes:
 
 ```
@@ -640,7 +672,6 @@ Manual process for making help file indexes:
         ant index TOC
 ```
 
-================================================================================
 ================================================================================
 
 `ant make-test-release-branch` does (more or less) the following actions (assumes 'github' is a remote pointing at https://github.com/JMRI/JMRI.git ):
@@ -656,7 +687,6 @@ Manual process for making help file indexes:
 ```
 
 ================================================================================
-================================================================================
 
 Possibilities for automating GitHub release creation:
 
@@ -664,57 +694,15 @@ Possibilities for automating GitHub release creation:
 Alternatively, if you have shell access to the Jenkins server, you perhaps can upload directly from there, once the initial draft release has been created (this hasn't been tested):
 
 ```
-github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.11.9 -n "JMRI.4.11.9+Rd144052.dmg" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.11.9/workspace/dist/release/JMRI.4.11.9+Rd144052.dmg 
-github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.11.9 -n "JMRI.4.11.9+Rd144052.exe" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.7.5/workspace/dist/release/JMRI.4.11.9+Rd144052.exe 
-github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.11.9 -n "JMRI.4.11.9+Rd144052.tgz" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.7.5/workspace/dist/release/JMRI.4.11.9+Rd144052.tgz 
+github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.15.2 -n "JMRI.4.15.2+Rd144052.dmg" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.15.2/workspace/dist/release/JMRI.4.15.2+Rd144052.dmg 
+github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.15.2 -n "JMRI.4.15.2+Rd144052.exe" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.15.2/workspace/dist/release/JMRI.4.15.2+Rd144052.exe 
+github-release upload -s {github_secret} -u JMRI -r JMRI -t v4.15.2 -n "JMRI.4.15.2+Rd144052.tgz" -f /var/lib/jenkins/jobs/TestReleases/jobs/4.15.2/workspace/dist/release/JMRI.4.15.2+Rd144052.tgz 
 ```
 
 (It might be possible to automate this in Ant, see http://stackoverflow.com/questions/24585609/upload-build-artifact-to-github-as-release-in-jenkins )
     
 
 
-================================================================================
-================================================================================
-## Old section on "Release Files on SourceForge"
-
-This step uploads the Linux, Mac OS X and Windows files to the SourceForge file distribution system. In the process, it generates checksums and some useful text for announcements.  
-
-(replace "user" below with your SourceForge.net user name; must have SSH keys for SourceForge.net set up)
-
- - (The "./testrelease 4.11.9" local script on shell.sf.net does the following steps, except for the edit, of course)
-```
-    ssh user,jmri@shell.sf.net create
-    ssh user,jmri@shell.sf.net
-    curl -o release.zip "http://builds.jmri.org/jenkins/job/Test%20Releases/job/4.11.9/ws/dist/release/*zip*/release.zip"
-        (use the following instead if building on second Jenkins server)
-    curl -o release.zip "http://builds.jmri.org/jenkins/job/TestReleases/job/4.11.9/ws/dist/release/*zip*/release.zip"
-    rm release/JMRI*
-    unzip release.zip
-    cd release
-    sha256sum JMRI*   (use 'shasum -a 256' on shell.sf.net)
-        (add the calculated hashes for each file to the release note; if a prod release, also on on the direct link on index.html)
-    scp JMRI.* ${USER}@"frs.sourceforge.net:/home/frs/project/j/jm/jmri/test\ files/"
-        (the scp is needed even if on SF.net, so that the FRS system knows you've added something; using cp is NFG)
-        (for production release, use ".../production\ files/")
-    
-    (clean up and logout)
-```
-
-- Create and upload the Javadocs (As of May 2016, the [Jenkins server](http://builds.jmri.org/jenkins/job/WebSite/job/generate-website/) was updating these from git weekly, in which case just start a run of that Jenkins job. Note that if you're doing this locally, it this might take an hour or more to upload on a home connection, and it's OK to defer the uploadjavadoc step): 
-```
-    ant javadoc-uml uploadjavadoc
-```
-
-- Create and upload the XSLT'd decoder pages
-```
-    (cd xml/XSLT; ant xslt upload)
-```
-
-   Note: the very first time doing this on a new machine, it will be required to run the rsync command manually as the ssh fingerprint for the server wil need to be added to the local machine. Without this, it will fail via ant.
-
-- Wait until the downloads have propagated to the SourceForge mirrors; check by trying to download each file
-
-================================================================================
 ================================================================================
 
 Instructions for uploading javadoc, XSLT if not being done automatically
@@ -732,7 +720,6 @@ Instructions for uploading javadoc, XSLT if not being done automatically
 
 Note: the very first time doing this on a new machine, it will be required to run the rsync command manually as the ssh fingerprint for the server wil need to be added to the local machine. Without this, it will fail via ant.
 
-================================================================================
 ================================================================================
 
 

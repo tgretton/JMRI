@@ -34,8 +34,6 @@ import jmri.jmrit.operations.setup.Setup;
 import jmri.jmrit.operations.trains.Train;
 import jmri.jmrit.operations.trains.TrainCommon;
 import jmri.jmrit.operations.trains.TrainManager;
-import jmri.jmrit.operations.trains.timetable.TrainSchedule;
-import jmri.jmrit.operations.trains.timetable.TrainScheduleManager;
 import jmri.util.davidflanagan.HardcopyWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -366,31 +364,22 @@ public class PrintLocationsAction extends AbstractAction {
                         si.getDestinationTrackName() +
                         NEW_LINE;
                 writer.write(s);
-                TrainSchedule sch = InstanceManager.getDefault(TrainScheduleManager.class)
-                        .getScheduleById(si.getSetoutTrainScheduleId());
-                String setoutDay = "";
-                if (sch != null) {
-                    setoutDay = sch.getName();
-                }
-                sch = InstanceManager.getDefault(TrainScheduleManager.class)
-                        .getScheduleById(si.getPickupTrainScheduleId());
-                String pickupDay = "";
-                if (sch != null) {
-                    pickupDay = sch.getName();
-                }
 
                 s = padOutString("", cts.getMaxNameLength() + 1) +
                         padOutString(Bundle.getMessage("Random"), Bundle.getMessage("Random").length() + 1) +
                         padOutString(Bundle.getMessage("Delivery"), Bundle.getMessage("Delivery").length() + 1) +
                         padOutString(Bundle.getMessage("Road"), crs.getMaxNameLength() + 1) +
-                        Bundle.getMessage("Pickup") +
+                        padOutString(Bundle.getMessage("Pickup"), Bundle.getMessage("Delivery").length() + 1) +
+                        Bundle.getMessage("Wait") +
                         NEW_LINE;
                 writer.write(s);
+                
                 s = padOutString("", cts.getMaxNameLength() + 1) +
                         padOutString(si.getRandom(), Bundle.getMessage("Random").length() + 1) +
-                        padOutString(setoutDay, Bundle.getMessage("Delivery").length() + 1) +
+                        padOutString(si.getSetoutTrainScheduleName(), Bundle.getMessage("Delivery").length() + 1) +
                         padOutString(si.getRoadName(), crs.getMaxNameLength() + 1) +
-                        pickupDay +
+                        padOutString(si.getPickupTrainScheduleName(), Bundle.getMessage("Delivery").length() + 1) +
+                        si.getWait() +
                         NEW_LINE;
                 writer.write(s);
             }
@@ -600,15 +589,21 @@ public class PrintLocationsAction extends AbstractAction {
 
     private void printErrorAnalysisSelected() throws IOException {
         writer.write(Bundle.getMessage("TrackErrorAnalysis") + NEW_LINE);
-        List<Location> locations = lmanager.getLocationsByNameList();
-        for (Location location : locations) {
+        boolean foundError = false;
+        for (Location location : lmanager.getLocationsByNameList()) {
             if (_location != null && location != _location) {
                 continue;
             }
             writer.write(location.getName() + NEW_LINE);
             for (Track track : location.getTrackByNameList(null)) {
-                writer.write(TAB + track.getName() + TAB + track.checkPickups() + NEW_LINE);
+                if (!track.checkPickups().equals(Track.PICKUP_OKAY)) {
+                    writer.write(TAB + track.checkPickups() + NEW_LINE);
+                    foundError = true;
+                }
             }
+        } 
+        if (!foundError) {
+            writer.write(Bundle.getMessage("NoErrors"));
         }
     }
 
@@ -694,6 +689,7 @@ public class PrintLocationsAction extends AbstractAction {
                 writer.write(getPickUpTrains(track));
                 writer.write(getDestinations(track));
                 writer.write(getSchedule(track));
+                writer.write(getStagingInfo(track));
             } catch (IOException we) {
                 log.error("Error printing PrintLocationAction: " + we);
             }
@@ -836,7 +832,7 @@ public class PrintLocationsAction extends AbstractAction {
 
     private String getTrackShipLoads(Track track) {
         // only staging has the ship load control
-        if (!track.getTrackType().equals(Track.STAGING)) {
+        if (!track.isStaging()) {
             return "";
         }
         if (track.getShipLoadOption().equals(Track.ALL_LOADS)) {
@@ -867,8 +863,8 @@ public class PrintLocationsAction extends AbstractAction {
 
     private String getCarOrder(Track track) {
         // only yards and interchanges have the car order option
-        if (track.getTrackType().equals(Track.SPUR) ||
-                track.getTrackType().equals(Track.STAGING) ||
+        if (track.isSpur() ||
+                track.isStaging() ||
                 track.getServiceOrder().equals(Track.NORMAL)) {
             return "";
         }
@@ -1039,7 +1035,7 @@ public class PrintLocationsAction extends AbstractAction {
 
     private String getSchedule(Track track) {
         // only spurs have schedules
-        if (!track.getTrackType().equals(Track.SPUR) || track.getSchedule() == null) {
+        if (!track.isSpur() || track.getSchedule() == null) {
             return "";
         }
         StringBuffer buf = new StringBuffer(TAB +
@@ -1063,6 +1059,78 @@ public class PrintLocationsAction extends AbstractAction {
         }
         return buf.toString();
     }
+    
+    private String getStagingInfo(Track track) {
+        if (!track.isStaging()) {
+            return "";
+        }
+
+        StringBuffer buf = new StringBuffer();
+
+        if (track.isLoadSwapEnabled() || track.isLoadEmptyEnabled()) {
+            buf.append(TAB + SPACE +
+                    Bundle.getMessage("OptionalLoads") +
+                    NEW_LINE);
+            if (track.isLoadSwapEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("SwapCarLoads") +
+                        NEW_LINE);
+            }
+            if (track.isLoadEmptyEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("EmptyDefaultCarLoads") +
+                        NEW_LINE);
+            }
+        }
+
+        if (track.isRemoveCustomLoadsEnabled() ||
+                track.isAddCustomLoadsEnabled() ||
+                track.isAddCustomLoadsAnySpurEnabled() ||
+                track.isAddCustomLoadsAnyStagingTrackEnabled()) {
+            buf.append(TAB + SPACE +
+                    Bundle.getMessage("OptionalCustomLoads") +
+                    NEW_LINE);
+            if (track.isRemoveCustomLoadsEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("EmptyCarLoads") +
+                        NEW_LINE);
+            }
+            if (track.isAddCustomLoadsEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("LoadCarLoads") +
+                        NEW_LINE);
+            }
+            if (track.isAddCustomLoadsAnySpurEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("LoadAnyCarLoads") +
+                        NEW_LINE);
+            }
+            if (track.isAddCustomLoadsAnyStagingTrackEnabled()) {
+                buf.append(TAB +
+                        TAB +
+                        Bundle.getMessage("LoadsStaging") +
+                        NEW_LINE);
+            }
+        }
+
+        if (track.isBlockCarsEnabled()) {
+            buf.append(TAB + SPACE +
+                    Bundle.getMessage("OptionalBlocking") +
+                    NEW_LINE);
+            buf.append(TAB +
+                    TAB +
+                    Bundle.getMessage("BlockCars") +
+                    NEW_LINE);
+        }
+
+        buf.append(NEW_LINE);
+        return buf.toString();
+    }
 
     private String padOutString(String s, int length) {
         return TrainCommon.padAndTruncateString(s, length, true);
@@ -1075,11 +1143,10 @@ public class PrintLocationsAction extends AbstractAction {
     JCheckBox printAnalysis = new JCheckBox(Bundle.getMessage("PrintAnalysis"));
     JCheckBox printErrorAnalysis = new JCheckBox(Bundle.getMessage("PrintErrorAnalysis"));
 
-    JButton okayButton = new JButton(Bundle.getMessage("ButtonOK"));
-
     public class LocationPrintOptionFrame extends OperationsFrame {
 
         PrintLocationsAction pla;
+        JButton okayButton = new JButton(Bundle.getMessage("ButtonOK"));
 
         public LocationPrintOptionFrame(PrintLocationsAction pla) {
             super();

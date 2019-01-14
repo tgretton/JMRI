@@ -89,6 +89,7 @@ import jmri.jmrit.roster.RosterEntry;
 import jmri.jmrit.roster.swing.RosterEntrySelectorPanel;
 import jmri.util.DnDStringImportHandler;
 import jmri.util.JmriJFrame;
+import jmri.util.swing.JmriColorChooser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -244,6 +245,14 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
         this(name, true, true);
     }
 
+    /**
+     * Set <strong>white</strong> as the default background color for panels created using the <strong>New Panel</strong> menu item.
+     * Overriden by LE to use a different default background color and set other initial defaults.
+     */
+    public void newPanelDefaults() {
+        setBackgroundColor(Color.WHITE);
+    }
+
     public void loadFailed() {
         _loadFailed = true;
     }
@@ -255,6 +264,9 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
 
     public NamedIcon loadFailed(String msg, String url) {
         log.debug("loadFailed _ignore= {} {}", _ignore, msg);
+        if (_urlMap == null) {
+            _urlMap = new HashMap<>();
+        }
         String goodUrl = _urlMap.get(url);
         if (goodUrl != null) {
             return NamedIcon.getIconByName(goodUrl);
@@ -277,7 +289,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
         return _newIcon;
     }
 
-    class UrlErrorDialog extends JDialog {
+    public class UrlErrorDialog extends JDialog {
 
         JTextField _urlField;
         CatalogPanel _catalog;
@@ -464,6 +476,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
     public void setBackgroundColor(Color col) {
         TargetPane tmp = (TargetPane) _targetPanel;
         tmp.setBackgroundColor(col);
+        JmriColorChooser.addRecentColor(col);
     }
 
     public void clearBackgroundColor() {
@@ -640,9 +653,15 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
                 g2d.scale(_paintScale, _paintScale);
             }
 
-            super.paint(g);
-            paintTargetPanel(g);
-
+            // It is rather unpleasant that the following needs to be done in a try-catch, but exceptions have been observed
+            try {
+               super.paint(g);
+               paintTargetPanel(g);
+            } catch (Exception e) {
+                log.error("paint failed in thread "+
+                    Thread.currentThread().getName()+" "+Thread.currentThread().getId()+": ", e);
+            }
+            
             Stroke stroke = new BasicStroke();
             if (g2d != null) {
                 stroke = g2d.getStroke();
@@ -691,6 +710,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
         public void setBackgroundColor(Color col) {
             setBackground(col);
             setOpaque(true);
+            JmriColorChooser.addRecentColor(col);
         }
 
         public void clearBackgroundColor() {
@@ -747,7 +767,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
         }
     }
 
-    protected void deselectSelectionGroup() {
+    public void deselectSelectionGroup() {
         if (_selectionGroup == null) {
             return;
         }
@@ -917,18 +937,6 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
      return _showCoordinates;
      }
      */
-    /**
-     * Control whether target panel shows a menu
-     *
-     * @param state true for controlling.
-     * @deprecated 3.9.5
-     * @see #setPanelMenuVisible(boolean)
-     */
-    @Deprecated
-    public void setPanelMenu(boolean state) {
-        _targetFrame.getJMenuBar().setVisible(state);
-        validate();
-    }
 
     /**
      * Hide or show menus on the target panel.
@@ -1090,7 +1098,8 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
             ed.setName(getName());
             ed.init(getName());
 
-            ed._contents = (ArrayList<Positionable>) _contents.clone();
+            ed._contents = new ArrayList<>(_contents);
+
             for (Positionable p : _contents) {
                 p.setEditor(ed);
                 ed.addToTarget(p);
@@ -2638,9 +2647,10 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
      *              for future use
      * @deprecated since 4.11.5. use {@link #dispose()} instead.
      */
-    @Deprecated
+    @Deprecated // 4.11.5
     public void dispose(boolean clear) {
         log.debug("Editor delete and dispose done. clear= {}", clear);
+        jmri.util.Log4JUtil.deprecationWarning(log, "dispose(boolean )");        
         dispose();
     }
 
@@ -2934,11 +2944,11 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
                 (new TextAttrDialog(comp)).setVisible(true);
             }
 
-            AbstractAction init(Positionable pos) {
+            AbstractAction init(Positionable pos, Editor e) { // e unused?
                 comp = pos;
                 return this;
             }
-        }.init(p));
+        }.init(p, this));
         return true;
     }
 
@@ -2961,8 +2971,8 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
             dim = new Dimension(dim.width +10, dim.height + 10);
             sp.setPreferredSize(dim);
             setContentPane(sp);
+            setLocation(jmri.util.PlaceWindow.nextTo(_pos.getEditor(), (Component)_pos, this));
             pack();
-            setLocationRelativeTo((Component) _pos);
         }
 
         protected JPanel makeDoneButtonPanel() {
@@ -2973,9 +2983,9 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
                 @Override
                 public void actionPerformed(ActionEvent a) {
                     PositionablePopupUtil util = _decorator.getPositionablePopupUtil();
+                    _decorator.setSuppressRecentColor(false);
                     _decorator.setAttributes(_pos);
                     if (_selectionGroup == null) {
-//                        _decorator.setAttributes(_pos);
                         setAttributes(util, _pos);
                     } else {
                         setSelectionsAttributes(util, _pos);
@@ -2989,6 +2999,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
             cancelButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent a) {
+                    _decorator.setSuppressRecentColor(false);
                     dispose();
                 }
             });
@@ -3004,7 +3015,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
      * @param p       the item to set attributes of
      *
      */
-    protected void setAttributes(PositionablePopupUtil newUtil, Positionable p) {
+    public void setAttributes(PositionablePopupUtil newUtil, Positionable p) {
         p.setPopupUtility(newUtil.clone(p, p.getTextComponent()));
         int mar = newUtil.getMargin();
         int bor = newUtil.getBorderSize();
@@ -3021,7 +3032,7 @@ abstract public class Editor extends JmriJFrame implements MouseListener, MouseM
             borderMargin = BorderFactory.createEmptyBorder(mar, mar, mar, mar);
         }
         p.setBorder(new CompoundBorder(outlineBorder, borderMargin));
-        
+
         if (p instanceof PositionableLabel) {
             PositionableLabel pos = (PositionableLabel) p;
             if (pos.isText()) {

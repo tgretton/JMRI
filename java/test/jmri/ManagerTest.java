@@ -13,7 +13,7 @@ import org.junit.Test;
  * Tests the static methods of the interface.
  * 
  * Detailed tests are in jmri.managers.AbstractManagerTestBase with even more
- * detailed tests (which require beans, etc) in jmri.managers.InternalSensorManagerTest
+ * detailed tests (which require beans, etc) in type-specific subclasses
  * 
  * @author Bob Jacobsen Copyright (C) 2017	
  */
@@ -37,6 +37,23 @@ public class ManagerTest {
     }
 
     @Test
+    public void testLegacyLog() {
+        jmri.Manager.legacyNameSet.clear(); // clean start
+
+        // start actual test
+        Assert.assertEquals("Empty at first", 0, Manager.legacyNameSet.size());
+
+        Manager.getSystemPrefix("DCCPPS01");
+        Assert.assertEquals("Didn't catch reference", 1, Manager.legacyNameSet.size());
+
+        Manager.getSystemPrefix("IS01");
+        Assert.assertEquals("Logged one in error", 1, Manager.legacyNameSet.size());
+
+        // there should be a ShutDownTask registered, remove it
+        InstanceManager.getDefault(jmri.ShutDownManager.class).deregister(Manager.legacyReportTask);
+    }
+    
+    @Test
     public void testGetSystemPrefixLengthThrow2() {
         try {
             Manager.getSystemPrefixLength("1T1");
@@ -47,7 +64,7 @@ public class ManagerTest {
     }
 
     // Test legacy prefixes
-    @Deprecated
+    @Deprecated // 4.11.2 to make sure we remember to remove this post-migration
     @Test
     public void testGetSystemPrefixLengthLegacyPrefixes() {
         Assert.assertEquals("DCCPPT12", 5, Manager.getSystemPrefixLength("DCCPPT12"));
@@ -73,7 +90,7 @@ public class ManagerTest {
     }
 
     // Test legacy prefixes
-    @Deprecated
+    @Deprecated // 4.11.2 to make sure we remember to remove this post-migration
     @Test
     public void testGetSystemPrefixLegacyPrefixes() {
         Assert.assertEquals("DCCPPT12", "DCCPP", Manager.getSystemPrefix("DCCPPT12"));
@@ -81,7 +98,7 @@ public class ManagerTest {
         Assert.assertEquals("DXT512", "DX", Manager.getSystemPrefix("DXT512"));
     }
 
-    @Test
+    @Test // 4.11.2 to make sure we remember to remove this post-migration
     public void testGetSystemPrefixBad() {
         try {
             Assert.assertEquals("LT1", "L", Manager.getSystemPrefix(""));
@@ -92,7 +109,7 @@ public class ManagerTest {
     }
     
     // Test legacy prefixes
-    @Deprecated
+    @Deprecated // 4.11.2 to make sure we remember to remove this post-migration
     @Test
     public void testIsLegacySystemPrefix() {
         Assert.assertTrue(Manager.isLegacySystemPrefix("DX"));
@@ -109,7 +126,7 @@ public class ManagerTest {
     }
     
     // Test legacy prefixes
-    @Deprecated
+    @Deprecated // 4.11.2 to make sure we remember to remove this post-migration
     @Test
     public void testLegacyPrefixes() {
         // catch if this is changed, so we remember to change
@@ -118,7 +135,7 @@ public class ManagerTest {
     }
 
     // Test legacy prefixes
-    @Deprecated
+    @Deprecated // 4.11.2 to make sure we remember to remove this post-migration
     @Test
     public void startsWithLegacySystemPrefix() {
         Assert.assertEquals(2, Manager.startsWithLegacySystemPrefix("DXS1"));

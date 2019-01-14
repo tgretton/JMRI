@@ -5,7 +5,10 @@ import jmri.jmrix.can.CanListener;
 import jmri.jmrix.can.CanMessage;
 import jmri.jmrix.can.CanReply;
 import jmri.jmrix.can.CanSystemConnectionMemo;
+import jmri.jmrix.can.cbus.simulator.CbusSimulator;
 import jmri.jmrix.can.TrafficController;
+import jmri.util.ThreadingUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,10 +26,15 @@ public class CbusCommandStation implements CommandStation, CanListener {
     public CbusCommandStation(CanSystemConnectionMemo memo) {
         tc = memo.getTrafficController();
         adapterMemo = memo;
+        
+        if ( ( tc != null ) && ( tc.getClass().getName().contains("Loopback")) ) {
+            _sim = getNetworkSim();
+        }
     }
 
     TrafficController tc;
     CanSystemConnectionMemo adapterMemo;
+    CbusSimulator _sim = null;
 
     /**
      * Send a specific packet to the rails.
@@ -37,17 +45,22 @@ public class CbusCommandStation implements CommandStation, CanListener {
      *                in the current implementation
      */
     @Override
-    public void sendPacket(byte[] packet, int repeats) {
+    public boolean sendPacket(byte[] packet, int repeats) {
 
-        if (repeats != 1) {
-            log.warn("Only single transmissions currently available");
+        if (repeats < 1) {
+            repeats = 1;
+            log.warn("Ops Mode Accessory Packet 'Send count' of < 1 is illegal and is forced to 1.");
         }
+        if (repeats > 8) {
+            repeats = 8;
+            log.warn("Ops Mode Accessory Packet 'Send count' reduced to 8.");
+        }        
 
         CanMessage m = new CanMessage(2 + packet.length, tc.getCanid());     // Account for opcode and repeat
         int j = 0; // counter of byte in input packet
 
         m.setElement(0, CbusConstants.CBUS_RDCC3 + (((packet.length - 3) & 0x3) << 5));
-        m.setElement(1, 1);   // repeat
+        m.setElement(1, repeats);   // repeat
 
         // add each byte of the input message
         for (j = 0; j < packet.length; j++) {
@@ -55,10 +68,11 @@ public class CbusCommandStation implements CommandStation, CanListener {
         }
 
         tc.sendCanMessage(m, null);
+        return true;
     }
 
     /**
-     * Release a session freeing up the slot for reuse
+     * Release a session freeing up the slot for reuse.
      *
      * @param handle the handle for the session to be released
      */
@@ -67,24 +81,24 @@ public class CbusCommandStation implements CommandStation, CanListener {
         CanMessage msg = new CanMessage(2, tc.getCanid());
         msg.setOpCode(CbusConstants.CBUS_KLOC);
         msg.setElement(1, handle);
-        log.debug("Release session handle " + handle);
+        log.debug("Release session handle {}", handle);
         tc.sendCanMessage(msg, null);
     }
 
     /**
-     * Send keep alive (DKEEP) packet for a throttle
+     * Send keep alive (DKEEP) packet for a throttle.
      *
      */
     public void sendKeepAlive(int handle) {
         CanMessage msg = new CanMessage(2, tc.getCanid());
         msg.setOpCode(CbusConstants.CBUS_DKEEP);
         msg.setElement(1, handle);
-        log.debug("keep alive handle: " + handle);
+        log.debug("keep alive handle: {}", handle);
         tc.sendCanMessage(msg, null);
     }
 
     /**
-     * Set loco speed and direction
+     * Set loco speed and direction.
      *
      * @param handle    The handle of the session to which it applies
      * @param speed_dir Bit 7 is direction (1 = forward) 6:0 are speed
@@ -94,19 +108,19 @@ public class CbusCommandStation implements CommandStation, CanListener {
         msg.setOpCode(CbusConstants.CBUS_DSPD);
         msg.setElement(1, handle);
         msg.setElement(2, speed_dir);
-        log.debug("setSpeedDir session handle " + handle + " speedDir " + speed_dir);
+        log.debug("setSpeedDir session handle {} speedDir {}", handle, speed_dir);
         tc.sendCanMessage(msg, null);
     }
 
     /**
-     * Send a CBUS message to set functions
+     * Send a CBUS message to set functions.
      *
      * @param group     The function group
      * @param handle    The handle of the session for the loco being controlled
      * @param functions Function bits
      */
     protected void setFunctions(int group, int handle, int functions) {
-        log.debug("Set function group " + group + " Fns " + functions + " for session handle" + handle);
+        log.debug("Set function group {} Fns {} for session handle {}", group, functions, handle);
         CanMessage msg = new CanMessage(4, tc.getCanid());
         msg.setOpCode(CbusConstants.CBUS_DFUN);
         msg.setElement(1, handle);
@@ -116,17 +130,31 @@ public class CbusCommandStation implements CommandStation, CanListener {
     }
 
     /**
-     * Send a CBUS message to change the session speed step mode
+     * Send a CBUS message to change the session speed step mode.
      *
      * @param mode the speed step mode
      */
     protected void setSpeedSteps(int handle, int mode) {
-        log.debug("Set speed step mode " + mode + " for session handle" + handle);
+        log.debug("Set speed step mode {} for session handle {}", mode, handle);
         CanMessage msg = new CanMessage(3, tc.getCanid());
         msg.setOpCode(CbusConstants.CBUS_STMOD);
         msg.setElement(1, handle);
         msg.setElement(2, mode);
         tc.sendCanMessage(msg, this);
+    }
+
+    public CbusSimulator getNetworkSim() {
+        if ( _sim == null ) {
+            ThreadingUtil.runOnLayout( ()->{
+                _sim = new CbusSimulator(adapterMemo);
+            });
+        }
+        return _sim;
+    }
+    
+    public void disposeNetworkSim() {
+        _sim.dispose();
+        _sim=null;
     }
 
     @Override
@@ -148,4 +176,5 @@ public class CbusCommandStation implements CommandStation, CanListener {
     }
 
     private final static Logger log = LoggerFactory.getLogger(CbusCommandStation.class);
+
 }

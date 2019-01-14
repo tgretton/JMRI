@@ -82,7 +82,7 @@ public class Ds64TabbedPanel extends AbstractBoardProgPanel {
      *                   info.
      */
     public Ds64TabbedPanel(int boardNum, boolean readOnInit) {
-        super(boardNum, readOnInit);
+        super(boardNum, readOnInit, "DS64");
         origAccessBoardNum = boardNum;
         boardNumsEntryValue.add(boardNum);
     }
@@ -1033,6 +1033,8 @@ public class Ds64TabbedPanel extends AbstractBoardProgPanel {
         }
     }
 
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", 
+                justification = "False positive on the implied local variable in indexToRead++")
     private int determineNextStateForRead() {
         switch (indexToRead) {
             case 1: {
@@ -2667,6 +2669,9 @@ public class Ds64TabbedPanel extends AbstractBoardProgPanel {
         responseTimer.addActionListener(routeResetResponseTimerListener);
         commandType.setToolTipText(Bundle.getMessage("ToolTipLabelAcceptedSwitchCommandTypes"));
         updateBasicOpSwTab();
+
+        panelToScroll();
+
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "Cannot catch an exception without grabbing the exception, but we don't do anything with the exception details.")

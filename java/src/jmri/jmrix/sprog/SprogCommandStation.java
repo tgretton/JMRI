@@ -1,5 +1,6 @@
 package jmri.jmrix.sprog;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Vector;
@@ -105,7 +106,7 @@ public class SprogCommandStation implements CommandStation, SprogListener, Runna
      * @param repeats number of times to repeat the packet
      */
     @Override
-    public void sendPacket(byte[] packet, int repeats) {
+    public boolean sendPacket(byte[] packet, int repeats) {
         if (packet.length <= 1) {
             log.error("Invalid DCC packet length: {}", packet.length);
         }
@@ -114,6 +115,7 @@ public class SprogCommandStation implements CommandStation, SprogListener, Runna
         }
         final SprogMessage m = new SprogMessage(packet);
         sendMessage(m);
+        return true;
     }
 
     /**
@@ -144,6 +146,7 @@ public class SprogCommandStation implements CommandStation, SprogListener, Runna
      * Clear all slots.
      */
     @SuppressWarnings("unused")
+    @SuppressFBWarnings(value = "UPM_UNCALLED_PRIVATE_METHOD", justification="was previously marked with @SuppressWarnings, reason unknown")
     private void clearAllSlots() {
         slots.stream().forEach((s) -> {
             s.clear();

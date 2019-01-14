@@ -1,17 +1,15 @@
 package jmri.util;
 
-import junit.framework.Test;
-import junit.framework.TestCase;
-import junit.framework.TestSuite;
-import org.junit.Assert;
+import org.junit.*;
 
 /**
  * Tests for the jmri.util.StringUtil class.
  *
  * @author	Bob Jacobsen Copyright 2003
  */
-public class StringUtilTest extends TestCase {
+public class StringUtilTest {
 
+    @Test
     public void testFindMatch1() {
         String[] s = new String[]{"A", "B", "C"};
         int[] num = new int[]{20, 30, 40};
@@ -30,6 +28,7 @@ public class StringUtilTest extends TestCase {
 
     }
 
+    @Test
     public void testFindMatch2() {
         String[] s = new String[]{"A", "B", "C"};
         int[] num = new int[]{0x20, 0x30, 0x40};
@@ -48,6 +47,7 @@ public class StringUtilTest extends TestCase {
 
     }
 
+    @Test
     public void testFindMatch3() {
         String[] s = new String[]{"A", "B", "C"};
         int[] num = new int[]{0x20, 0x30, 0x40};
@@ -67,6 +67,7 @@ public class StringUtilTest extends TestCase {
 
     }
 
+    @Test
     public void testFindState() {
         String[] s = new String[]{"A", "B", "C"};
         int[] n = new int[]{20, 30, 40};
@@ -76,6 +77,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("C", 40, StringUtil.getStateFromName("C", n, s));
     }
 
+    @Test
     public void testFindName() {
         String[] s = new String[]{"A", "B", "C"};
         int[] n = new int[]{20, 30, 40};
@@ -85,6 +87,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("C", "C", StringUtil.getNameFromState(40, n, s));
     }
 
+    @Test
     public void testHexFromInt() {
         Assert.assertEquals("00", StringUtil.twoHexFromInt(0));
         Assert.assertEquals("01", StringUtil.twoHexFromInt(1));
@@ -101,6 +104,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("FF", StringUtil.twoHexFromInt(0xFF));
     }
 
+    @Test
     public void testHexFromIntFromByte() {
         Assert.assertEquals("00", StringUtil.twoHexFromInt((byte) 0));
         Assert.assertEquals("01", StringUtil.twoHexFromInt((byte) 1));
@@ -110,6 +114,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("FF", StringUtil.twoHexFromInt((byte) 0xFF));
     }
 
+    @Test
     public void testAppHexFromInt() {
         Assert.assertEquals("00", StringUtil.appendTwoHexFromInt(0, ""));
         Assert.assertEquals("01", StringUtil.appendTwoHexFromInt(1, ""));
@@ -126,6 +131,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("FF", StringUtil.appendTwoHexFromInt(0xFF, ""));
     }
 
+    @Test
     public void testAppHexFromIntFromByte() {
         Assert.assertEquals("00", StringUtil.appendTwoHexFromInt((byte) 0, ""));
         Assert.assertEquals("01", StringUtil.appendTwoHexFromInt((byte) 1, ""));
@@ -135,23 +141,27 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("FF", StringUtil.appendTwoHexFromInt((byte) 0xFF, ""));
     }
 
+    @Test
     public void testParseStringNull() {
         byte[] b = StringUtil.bytesFromHexString("");
         Assert.assertEquals("array length", 0, b.length);
     }
 
+    @Test
     public void testParseSingleDigit() {
         byte[] b = StringUtil.bytesFromHexString("A");
         Assert.assertEquals("array length", 1, b.length);
         Assert.assertEquals("0th byte", 0x0A, b[0]);
     }
 
+    @Test
     public void testParseDoubleDigit() {
         byte[] b = StringUtil.bytesFromHexString("AB");
         Assert.assertEquals("array length", 1, b.length);
         Assert.assertEquals("0th byte", 0xAB, b[0] & 0xFF);
     }
 
+    @Test
     public void testParseSeveral() {
         byte[] b = StringUtil.bytesFromHexString("12 34 AB 3 19 6 B B1");
         Assert.assertEquals("array length", 8, b.length);
@@ -165,104 +175,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals("7th byte", 0xB1, b[7] & 0xFF);
     }
 
-    public void testSort1() {
-        String input[] = new String[]{"A", "B", "C"};
-        String output[] = new String[]{"A", "B", "C"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testSort2() {
-        String input[] = new String[]{"A", "b", "C"};
-        String output[] = new String[]{"A", "C", "b"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testSort3() {
-        String input[] = new String[]{"B", "C", "A"};
-        String output[] = new String[]{"A", "B", "C"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testSort4() {
-        String input[] = new String[]{"c", "b", "a"};
-        String output[] = new String[]{"a", "b", "c"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testSort5() {
-        String input[] = new String[]{"A", "c", "b"};
-        String output[] = new String[]{"A", "b", "c"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testSort6() {
-        String input[] = new String[]{"A", "A", "b"};
-        String output[] = new String[]{"A", "A", "b"};
-        StringUtil.sort(input);
-        Assert.assertArrayEquals(input, output);
-    }
-
-    public void testArraySort() {
-        String[] str = new String[]{"8567", "8456"};
-        jmri.util.StringUtil.sort(str);
-        Assert.assertEquals("first ", "8456", str[0]);
-    }
-
-    public void testSplit1() {
-        String input = "abc.cdf";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 2, result.length);
-        Assert.assertEquals("item 0", "abc", result[0]);
-        Assert.assertEquals("item 1", "cdf", result[1]);
-    }
-
-    public void testSplit2() {
-        String input = "abcxcdf";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 1, result.length);
-        Assert.assertEquals("item 0", "abcxcdf", result[0]);
-    }
-
-    public void testSplit3() {
-        String input = "abc.cdf.";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 3, result.length);
-        Assert.assertEquals("item 0", "abc", result[0]);
-        Assert.assertEquals("item 1", "cdf", result[1]);
-        Assert.assertEquals("item 2", "", result[2]);
-    }
-
-    public void testSplit4() {
-        String input = "abc.cdf.ert";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 3, result.length);
-        Assert.assertEquals("item 0", "abc", result[0]);
-        Assert.assertEquals("item 1", "cdf", result[1]);
-        Assert.assertEquals("item 2", "ert", result[2]);
-    }
-
-    public void testSplit5() {
-        String input = "abc..cdf";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 3, result.length);
-        Assert.assertEquals("item 0", "abc", result[0]);
-        Assert.assertEquals("item 1", "", result[1]);
-        Assert.assertEquals("item 2", "cdf", result[2]);
-    }
-
-    public void testSplit6() {
-        String input = "abcxcdf.";
-        String[] result = jmri.util.StringUtil.split(input, ".");
-        Assert.assertEquals("length", 2, result.length);
-        Assert.assertEquals("item 0", "abcxcdf", result[0]);
-        Assert.assertEquals("item 1", "", result[1]);
-    }
-
+    @Test
     public void testparenQuote() {
         String sample;
 
@@ -297,6 +210,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals(sample, "a\\)b", StringUtil.parenQuote(sample));
     }
 
+    @Test
     public void testparenUnQuote() {
         String sample;
 
@@ -331,6 +245,7 @@ public class StringUtilTest extends TestCase {
         Assert.assertEquals(sample, "a)b", StringUtil.parenUnQuote(sample));
     }
 
+    @Test
     public void testSplitParens() {
         String sample;
         java.util.List<String> list;
@@ -348,6 +263,7 @@ public class StringUtilTest extends TestCase {
 
     }
 
+    @Test
     public void testArrayToString() {
         Object[] a = new Object[]{"A", "B", "C"};
         Assert.assertEquals("Object", "[A],[B],[C]", StringUtil.arrayToString(a));
@@ -361,22 +277,4 @@ public class StringUtilTest extends TestCase {
         int[] d = new int[]{1, 2, 3};
         Assert.assertEquals("Object", "[1],[2],[3]", StringUtil.arrayToString(d));
     }
-
-    // from here down is testing infrastructure
-    public StringUtilTest(String s) {
-        super(s);
-    }
-
-    // Main entry point
-    static public void main(String[] args) {
-        String[] testCaseName = {"-noloading", StringUtilTest.class.getName()};
-        junit.textui.TestRunner.main(testCaseName);
-    }
-
-    // test suite from all defined tests
-    public static Test suite() {
-        TestSuite suite = new TestSuite(StringUtilTest.class);
-        return suite;
-    }
-
 }

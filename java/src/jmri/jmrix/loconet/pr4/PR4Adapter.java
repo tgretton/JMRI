@@ -3,6 +3,7 @@ package jmri.jmrix.loconet.pr4;
 import jmri.jmrix.loconet.LnCommandStationType;
 import jmri.jmrix.loconet.LnPacketizer;
 import jmri.jmrix.loconet.LocoNetMessage;
+import jmri.jmrix.loconet.LocoNetSystemConnectionMemo;
 import jmri.jmrix.loconet.locobuffer.LocoBufferAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,7 @@ public class PR4Adapter extends LocoBufferAdapter {
      * not considered a user-settable option.  Sets the PR4 for the appropriate
      * operating mode, based on the selected "command station type".
      *
-     * @param activeSerialPort - the port to be configured
+     * @param activeSerialPort  the port to be configured
      */
     @Override
     protected void setSerialPort(SerialPort activeSerialPort) throws UnsupportedCommOperationException {
@@ -66,6 +67,9 @@ public class PR4Adapter extends LocoBufferAdapter {
      * port. This overrides the version in loconet.locobuffer, but it has to
      * duplicate much of the functionality there, so the code is basically
      * copied.
+     * 
+     * Note that the PR4 does not support "LocoNet Data Signal termination" when
+     * in LocoNet interface mode (i.e. MS100 mode).
      */
     @Override
     public void configure() {
@@ -76,10 +80,10 @@ public class PR4Adapter extends LocoBufferAdapter {
             // connect to a packetizing traffic controller
             // that does echoing
             //
-            // Note - already created a LocoNetSystemConnectionMemo, so re-use 
+            // Note - already created a LocoNetSystemConnectionMemo, so re-use
             // it when creating a PR2 Packetizer.  (If create a new one, will
             // end up with two "LocoNet" menus...)
-            jmri.jmrix.loconet.pr2.LnPr2Packetizer packets = 
+            jmri.jmrix.loconet.pr2.LnPr2Packetizer packets =
                     new jmri.jmrix.loconet.pr2.LnPr2Packetizer(this.getSystemConnectionMemo());
             packets.connectPort(this);
 
@@ -126,9 +130,6 @@ public class PR4Adapter extends LocoBufferAdapter {
             msg.setOpCode(0xD3);
             msg.setElement(1, 0x10);
             msg.setElement(2, 0);  // set MS100, no power
-            if (commandStationType == LnCommandStationType.COMMAND_STATION_STANDALONE) {
-                msg.setElement(2, 3);  // set MS100, with power
-            }
             msg.setElement(3, 0);
             msg.setElement(4, 0);
             packets.sendLocoNetMessage(msg);
@@ -159,32 +160,30 @@ public class PR4Adapter extends LocoBufferAdapter {
 
     /**
      * The PR4 can be used as a "Standalone Programmer", or with various LocoNet
-     * command stations, or as an interface to a "Standalone LocoNet".  Provide those
-     * options.
+     * command stations.  The PR4 does not support "LocoNet Data signal termination",
+     * so that is not added as a valid option (as it would be for the PR3).
      *
      * @return an array of strings containing the various command station names and
      *      name(s) of modes without command stations
      */
     public String[] commandStationOptions() {
-        String[] retval = new String[commandStationNames.length + 2];
+        String[] retval = new String[commandStationNames.length + 1];
         retval[0] = LnCommandStationType.COMMAND_STATION_PR4_ALONE.getName();
         for (int i = 0; i < commandStationNames.length; i++) {
             retval[i + 1] = commandStationNames[i];
         }
-        retval[retval.length - 1] = LnCommandStationType.COMMAND_STATION_STANDALONE.getName();
         return retval;
     }
 
     @Override
     public PR4SystemConnectionMemo getSystemConnectionMemo() {
-        if (super.getSystemConnectionMemo() instanceof PR4SystemConnectionMemo) {
-            return (PR4SystemConnectionMemo) super.getSystemConnectionMemo();
-        } else {
-            log.error("Cannot cast the system connection memo to a PR4SystemConnection Memo.");
-            return null;
+        LocoNetSystemConnectionMemo m = super.getSystemConnectionMemo();
+        if (m instanceof PR4SystemConnectionMemo) {
+            return (PR4SystemConnectionMemo) m;
         }
+        log.error("Cannot cast the system connection memo to a PR4SystemConnection Memo.");
+        return null;
     }
-
 
     private final static Logger log = LoggerFactory.getLogger(PR4Adapter.class);
 }
